@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import 'logs.dart';
 
 class MainView extends StatefulWidget {
   const MainView({super.key});
@@ -39,6 +40,15 @@ class MainViewState extends State<MainView> {
         title: const Text("GitHub Discover"),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
+          Consumer<ApiService>(
+            builder: (context, apiService, child) {
+              return IconButton(
+                icon: const Icon(Icons.terminal),
+                tooltip: "Logs",
+                onPressed: () => _showLogs(context, apiService),
+              );
+            },
+          ),
           Consumer<ApiService>(
             builder: (context, apiService, child) {
               return IconButton(
@@ -206,6 +216,14 @@ class MainViewState extends State<MainView> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showLogs(BuildContext context, ApiService apiService) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => LogsBottomSheet(apiService: apiService),
     );
   }
 
