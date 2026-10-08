@@ -19,10 +19,12 @@ class ApiService extends ChangeNotifier {
   List<Word> _langData = [];
   List<Repo> _currentRepos = [];
   final List<String> _history = [];
+  bool _langDataLoadError = false;
 
   List<Word> get langData => _langData;
   List<Repo> get currentRepos => _currentRepos;
   List<String> get history => List.unmodifiable(_history);
+  bool get langDataLoadError => _langDataLoadError;
 
   void setLogger(LoggerService logger) {
     _logger = logger;
@@ -43,18 +45,26 @@ class ApiService extends ChangeNotifier {
 
   Future<void> loadLangData() async {
     _logger!.info("Loading language data from API", source: "ApiService");
-    final response = await http.get(Uri.parse(Config.wordsApi));
-    if (response.statusCode != 200) {
-      _logger!.error(
-        "Failed to load words data: ${response.statusCode}",
-        source: "ApiService",
-      );
-      throw Exception("Failed to load words data");
+    try {
+      final response = await http.get(Uri.parse(Config.wordsApi));
+      if (response.statusCode != 200) {
+        _logger!.error(
+          "Failed to load words data: ${response.statusCode}",
+          source: "ApiService",
+        );
+        _langDataLoadError = true;
+        notifyListeners();
+        return;
+      }
+      final List<dynamic> jsonList = json.decode(response.body);
+      _langData = jsonList.map((e) => Word.fromJson(e)).toList();
+      _logger!.info("Loaded ${_langData.length} words", source: "ApiService");
+      _langDataLoadError = false;
+      await _loadHistory();
+    } catch (e) {
+      _logger!.error("Failed to load words data: $e", source: "ApiService");
+      _langDataLoadError = true;
     }
-    final List<dynamic> jsonList = json.decode(response.body);
-    _langData = jsonList.map((e) => Word.fromJson(e)).toList();
-    _logger!.info("Loaded ${_langData.length} words", source: "ApiService");
-    await _loadHistory();
     notifyListeners();
   }
 

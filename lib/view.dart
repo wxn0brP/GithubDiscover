@@ -13,10 +13,10 @@ class MainView extends StatefulWidget {
 }
 
 class MainViewState extends State<MainView> {
-  final _formKey = GlobalKey<FormState>();
   String? _selectedLanguage;
   final _pageController = TextEditingController(text: "1");
-  final _perPageController = TextEditingController(text: "1");
+  final _perPageController = TextEditingController(text: "6");
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -30,6 +30,7 @@ class MainViewState extends State<MainView> {
   void dispose() {
     _pageController.dispose();
     _perPageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -43,9 +44,11 @@ class MainViewState extends State<MainView> {
           Consumer<ApiService>(
             builder: (context, apiService, child) {
               return IconButton(
-                icon: const Icon(Icons.terminal),
-                tooltip: "Logs",
-                onPressed: () => _showLogs(context, apiService),
+                icon: const Icon(Icons.settings),
+                tooltip: "Settings",
+                onPressed: apiService.langData.isEmpty && !apiService.langDataLoadError
+                    ? null
+                    : () => _showSettingsForm(context),
               );
             },
           ),
@@ -60,107 +63,157 @@ class MainViewState extends State<MainView> {
               );
             },
           ),
+          Consumer<ApiService>(
+            builder: (context, apiService, child) {
+              return IconButton(
+                icon: const Icon(Icons.terminal),
+                tooltip: "Logs",
+                onPressed: () => _showLogs(context, apiService),
+              );
+            },
+          ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Language selector
-              DropdownButtonFormField<String>(
-                initialValue: _selectedLanguage,
-                decoration: const InputDecoration(
-                  labelText: "Language",
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  const DropdownMenuItem(
-                    value: "all",
-                    child: Text("All languages"),
-                  ),
-                  ...context.watch<ApiService>().availableLanguages.map((lang) {
-                    return DropdownMenuItem(value: lang, child: Text(lang));
-                  }),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedLanguage = value == "all" ? null : value;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Page and per page inputs
-              Row(
+      body: Consumer<ApiService>(
+        builder: (context, apiService, child) {
+          if (apiService.langDataLoadError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _pageController,
-                      decoration: const InputDecoration(
-                        labelText: "Page",
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    ),
+                  const Icon(Icons.wifi_off, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Failed to load data.\nCheck your internet connection.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _perPageController,
-                      decoration: const InputDecoration(
-                        labelText: "Per Page",
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.refresh),
+                    label: const Text("Retry"),
+                    onPressed: () => apiService.loadLangData(),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-
-              // Find button
-              ElevatedButton.icon(
-                icon: const Icon(Icons.search),
-                label: const Text("Find Random Repo"),
-                onPressed: context.watch<ApiService>().langData.isEmpty
-                    ? null
-                    : () => _findRandomRepo(context),
+            );
+          }
+          if (apiService.langData.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (apiService.currentRepos.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.search, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text("Tap the button below to find repositories", style: TextStyle(color: Colors.grey)),
+                ],
               ),
-              const SizedBox(height: 24),
-
-              // Results
-              Expanded(
-                child: Consumer<ApiService>(
-                  builder: (context, apiService, child) {
-                    if (apiService.langData.isEmpty) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (apiService.currentRepos.isEmpty) {
-                      return const Center(
-                        child: Text("Press the button to find repositories"),
-                      );
-                    }
-                    return child!;
-                  },
-                  child: const ResultsList(),
-                ),
-              ),
-            ],
-          ),
-        ),
+            );
+          }
+          return child!;
+        },
+        child: ResultsList(scrollController: _scrollController),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _findRandomRepo(context),
+        icon: const Icon(Icons.search),
+        label: const Text("Find"),
+      ),
+    );
+  }
+
+  void _showSettingsForm(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Material(
+            color: Theme.of(context).colorScheme.surface,
+            elevation: 24,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    "Settings",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _selectedLanguage ?? "all",
+                    decoration: const InputDecoration(
+                      labelText: "Language",
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: "all",
+                        child: Text("All languages"),
+                      ),
+                      ...context.read<ApiService>().availableLanguages.map((lang) {
+                        return DropdownMenuItem(value: lang, child: Text(lang));
+                      }),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedLanguage = value == "all" ? null : value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _pageController,
+                          decoration: const InputDecoration(
+                            labelText: "Page",
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _perPageController,
+                          decoration: const InputDecoration(
+                            labelText: "Per Page",
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    child: const Text("Done"),
+                    onPressed: () => Navigator.pop(dialogContext),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
   Future<void> _findRandomRepo(BuildContext context) async {
     final apiService = context.read<ApiService>();
     final page = int.tryParse(_pageController.text) ?? 1;
-    final perPage = int.tryParse(_perPageController.text) ?? 10;
+    final perPage = int.tryParse(_perPageController.text) ?? 6;
 
     try {
       await apiService.findRandomRepo(
@@ -168,13 +221,18 @@ class MainViewState extends State<MainView> {
         page: page,
         perPage: perPage,
       );
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Found repositories!")));
+      if (mounted) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Found repositories!")),
+        );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
         );
@@ -236,7 +294,9 @@ class MainViewState extends State<MainView> {
 }
 
 class ResultsList extends StatelessWidget {
-  const ResultsList({super.key});
+  final ScrollController scrollController;
+
+  const ResultsList({super.key, required this.scrollController});
 
   @override
   Widget build(BuildContext context) {
@@ -244,11 +304,12 @@ class ResultsList extends StatelessWidget {
       builder: (context, apiService, child) {
         final repos = apiService.currentRepos;
         return ListView.builder(
+          controller: scrollController,
           itemCount: repos.length,
           itemBuilder: (context, index) {
             final repo = repos[index];
             return Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
+              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
               child: ListTile(
                 title: Text(
                   repo.fullName,
