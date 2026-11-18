@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/word.dart';
 import '../models/repo.dart';
 import 'logger_service.dart';
 
 class Config {
-  static const String wordsApi = "https://random-words-api.kushcreates.com/api";
+  static const String wordsAsset = "assets/data/words.json";
   static const String githubApi = "https://api.github.com/search/repositories";
   static const String historyKey = "repo_history";
   static const String supportEmail = "bugs@wxn0.xyz";
@@ -44,25 +45,28 @@ class ApiService extends ChangeNotifier {
   }
 
   Future<void> loadLangData() async {
-    _logger!.info("Loading language data from API", source: "ApiService");
+    logger.info("Loading words data", source: "ApiService");
     try {
-      final response = await http.get(Uri.parse(Config.wordsApi));
-      if (response.statusCode != 200) {
-        _logger!.error(
-          "Failed to load words data: ${response.statusCode}",
-          source: "ApiService",
-        );
-        _langDataLoadError = true;
-        notifyListeners();
-        return;
-      }
-      final List<dynamic> jsonList = json.decode(response.body);
-      _langData = jsonList.map((e) => Word.fromJson(e)).toList();
-      _logger!.info("Loaded ${_langData.length} words", source: "ApiService");
+      final raw = await rootBundle.loadString(Config.wordsAsset);
+      final Map<String, dynamic> file = json.decode(raw);
+      _langData = file.entries.expand((languageEntry) {
+        final categories = languageEntry.value as Map<String, dynamic>;
+        return categories.entries.expand((categoryEntry) {
+          final words = categoryEntry.value as List<dynamic>;
+          return words.map(
+            (word) => Word(
+              word: word as String,
+              language: languageEntry.key,
+              category: categoryEntry.key,
+            ),
+          );
+        });
+      }).toList();
+      logger.info("Loaded ${_langData.length} words", source: "ApiService");
       _langDataLoadError = false;
       await _loadHistory();
     } catch (e) {
-      _logger!.error("Failed to load words data: $e", source: "ApiService");
+      logger.error("Failed to load words data: $e", source: "ApiService");
       _langDataLoadError = true;
     }
     notifyListeners();

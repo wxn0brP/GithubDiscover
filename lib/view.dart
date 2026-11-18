@@ -81,10 +81,10 @@ class MainViewState extends State<MainView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.wifi_off, size: 64, color: Colors.red),
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
                   const SizedBox(height: 16),
                   const Text(
-                    "Failed to load data.\nCheck your internet connection.",
+                    "Failed to load words data.\nPlease try again.",
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey),
                   ),
