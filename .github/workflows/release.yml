@@ -54,7 +54,7 @@ jobs:
           echo "build_number=$ORIGINAL_PATCH" >> $GITHUB_OUTPUT
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -67,7 +67,7 @@ jobs:
             ## Changes
             - Build APK and App Bundle
           files: |
-            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           draft: false
           prerelease: false
         env:
